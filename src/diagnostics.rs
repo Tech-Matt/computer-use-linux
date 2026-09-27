@@ -1,6 +1,6 @@
 use crate::windowing::registry::{
     self, COSMIC_WAYLAND_BACKEND, GNOME_SHELL_EXTENSION_BACKEND, GNOME_SHELL_INTROSPECT_BACKEND,
-    HYPRLAND_BACKEND, I3_BACKEND, KWIN_BACKEND, X11_BACKEND,
+    HYPRLAND_BACKEND, I3_BACKEND, KWIN_BACKEND, NIRI_BACKEND, X11_BACKEND,
 };
 use crate::ydotool;
 use schemars::JsonSchema;
@@ -19,6 +19,7 @@ const DESKTOP_ENV_KEYS: &[&str] = &[
     "DESKTOP_SESSION",
     "DISPLAY",
     "HYPRLAND_INSTANCE_SIGNATURE",
+    "NIRI_SOCKET",
     "XAUTHORITY",
     "YDOTOOL_SOCKET",
     "XDG_SESSION_DESKTOP",
@@ -340,7 +341,14 @@ fn capability_map_with_portal_keyboard(
     if windowing.hyprland.ok {
         window_backends.push("hyprland".to_string());
     }
-    // i3 and the generic X11/EWMH backend have no dedicated
+    if windowing
+        .backends
+        .get(NIRI_BACKEND)
+        .is_some_and(|check| check.ok)
+    {
+        window_backends.push(NIRI_BACKEND.to_string());
+    }
+    // Niri, i3, and the generic X11/EWMH backend have no dedicated
     // WindowingReport field; read them from the probe map so the capability
     // list matches the registry order.
     if windowing
@@ -804,11 +812,13 @@ fn windowing_report(platform: &PlatformReport) -> WindowingReport {
             "A KWin/Plasma window backend is available for list_windows, focused_window, and targeted input verification."
         } else if hyprland.ok {
             "A Hyprland window backend is available for list_windows, focused_window, and targeted input verification."
+        } else if backend_check(NIRI_BACKEND).ok {
+            "A Niri window backend is available for list_windows, focused_window, and targeted input verification."
         } else {
             "A window listing backend is available for list_windows, focused_window, and targeted input verification."
         }
     } else {
-        "Window listing is unavailable or denied. Computer Use can still use screenshots, AT-SPI, and global ydotool input, but targeted window input cannot be verified. On GNOME, run setup_window_targeting to install the optional GNOME Shell extension backend. On COSMIC, ensure the bundled COSMIC helper is present and can connect to the session. On KDE/Plasma, ensure KWin exposes org.kde.KWin scripting on the session bus. On Hyprland, ensure hyprctl is available in the session."
+        "Window listing is unavailable or denied. Computer Use can still use screenshots, AT-SPI, and global ydotool input, but targeted window input cannot be verified. On GNOME, run setup_window_targeting to install the optional GNOME Shell extension backend. On COSMIC, ensure the bundled COSMIC helper is present and can connect to the session. On KDE/Plasma, ensure KWin exposes org.kde.KWin scripting on the session. On Hyprland, ensure hyprctl is available in the session. On Niri, ensure niri can access NIRI_SOCKET."
     }
     .to_string();
 
@@ -1719,6 +1729,11 @@ mod tests {
     #[test]
     fn desktop_env_hydration_includes_xauthority() {
         assert!(DESKTOP_ENV_KEYS.contains(&"XAUTHORITY"));
+    }
+
+    #[test]
+    fn desktop_env_hydration_includes_niri_socket() {
+        assert!(DESKTOP_ENV_KEYS.contains(&"NIRI_SOCKET"));
     }
 
     #[test]
